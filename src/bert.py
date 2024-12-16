@@ -133,7 +133,7 @@ class TextModel(nn.Module):
     def __init__(self, opt):
         super(TextModel, self).__init__()
         # the root_path of bert model
-        abl_path = '.../bert/'
+        abl_path = 'models_cfgs/bert/'
 
         if opt.text_model == 'bert-base':
             self.config = BertConfig.from_pretrained(abl_path + 'modeling_bert/bert-base-uncased-config.json')
@@ -179,7 +179,7 @@ class embeding(nn.Module):
         num_patches = gh * gw
         # self.embedding = nn.Conv2d(3, emb_dim, kernel_size=(fh, fw), stride=(fh, fw))
         self.embedding = nn.Conv2d(3, emb_dim, kernel_size=(fh, fw),stride=(fh,fw))
-        self.downsampling=nn.Conv2d(emb_dim,120,kernel_size=(1,1),stride=(2,2))
+        self.downsampling=nn.Conv2d(emb_dim,120,kernel_size=(1,1),stride=(2,2))  # to load weights file
 
 
 

@@ -9,7 +9,7 @@ import os
 import numpy as np
 from src.eval_tools import evaluation, print_results, vis_results,evaluate_earliness
 from src.bert import opt
-from src.dataset import DADA
+from src.dataset import DADA2K
 from natsort import natsorted
 
 os.environ['CUDA_VISIBLE_DEVICES']= '0'
@@ -24,18 +24,18 @@ transform = transforms.Compose(
 device = torch.device('cuda:0')
 num_epochs = 50
 # learning_rate = 0.0001
-batch_size = 2
+batch_size = 1
 shuffle = True
 pin_memory = True
 num_workers = 1
-rootpath=r'/mnt/experiments/sorlova/datasets/LOTVS/DADA/DADA1000'
+rootpath=r'/mnt/experiments/sorlova/datasets/LOTVS/DADA/DADA2000'
 frame_interval=1
 input_shape=[224,224]
 seed = 123
 np.random.seed(seed)
 torch.manual_seed(seed)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-val_data=DADA(rootpath , 'testing', interval=1,transform=transform)
+val_data=DADA2K(rootpath , 'testing', interval=1,transform=transform)
 valdata_loader=DataLoader(dataset=val_data, batch_size=batch_size, shuffle=False,
                                   num_workers=num_workers, pin_memory=True,drop_last=True)
 def write_scalars(logger, epoch, loss):
@@ -59,7 +59,7 @@ def test(test_dataloader, model):
             # torch.cuda.empty_cache()
             imgs=imgs.to(device)
             focus=focus.to(device)
-            labels = label
+            labels = label[0]  # only for batch 1
             toa = info[0:, 4].to(device)
             labels = np.array(labels).astype(int)
             labels = torch.from_numpy(labels)
@@ -80,10 +80,6 @@ def test(test_dataloader, model):
             all_labels.append(label)
             toas = np.squeeze(toa.cpu().numpy()).astype(np.int64)
             all_toas.append(toas)
-
-            deb = np.concatenate(all_pred)
-            deb2 = np.concatenate(all_labels)
-
             loop.set_postfix(val_loss = sum(losses_all))
     all_pred = np.concatenate(all_pred)
     all_labels = np.concatenate(all_labels)
@@ -111,6 +107,7 @@ def test_data():
     model.load_state_dict(weight, strict=False)  # hmmm...
     print('------Starting evaluation------')
     all_pred, all_labels, all_toas= test(valdata_loader,model)
+    #
     mTTA = evaluate_earliness(all_pred, all_labels, all_toas, fps=30, thresh=0.5)
     print("\n[Earliness] mTTA@0.5 = %.4f seconds." % (mTTA))
     AP, mTTA, TTA_R80 = evaluation(all_pred, all_labels, all_toas, fps=30)

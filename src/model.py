@@ -344,7 +344,7 @@ class Text(nn.Module):
         super(Text,self).__init__()
         self.textNet = TextModel(opt)
     def forward(self, x):
-        tokenizer = BertTokenizer.from_pretrained(r'/bert/modeling_bert/bert-base-uncased-vocab.txt')
+        tokenizer = BertTokenizer.from_pretrained(r'models_cfgs/bert/modeling_bert/bert-base-uncased-vocab.txt')
         max_len = 15
         res=[]
         for text in x:
