@@ -9,12 +9,11 @@ from tqdm import tqdm
 import os
 import numpy as np
 import pandas as pd
-from src.eval_tools import evaluation, print_results, vis_results,evaluate_earliness
 from src.bert import opt
-from src.dataset import DADA2K
+from src.dataset import DoTA
 from natsort import natsorted
 
-os.environ['CUDA_VISIBLE_DEVICES']= '0'
+os.environ['CUDA_VISIBLE_DEVICES']= '1'
 transform = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -23,22 +22,21 @@ transform = transforms.Compose(
         ]
     )
 
-# device = ("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device('cuda:0')
+
 num_epochs = 50
 # learning_rate = 0.0001
 batch_size = 1
 shuffle = True
 pin_memory = True
 num_workers = 1
-rootpath=r'/mnt/experiments/sorlova/datasets/LOTVS/DADA/DADA2000'
+rootpath=r'/mnt/experiments/sorlova/datasets/DoTA_refined'
 frame_interval=1
 input_shape=[224,224]
 seed = 123
 np.random.seed(seed)
 torch.manual_seed(seed)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-val_data=DADA2K(rootpath , 'testing', interval=1,transform=transform)
+val_data=DoTA(rootpath , 'testing', interval=1,transform=transform)
 valdata_loader=DataLoader(dataset=val_data, batch_size=batch_size, shuffle=False,
                                   num_workers=num_workers, pin_memory=True,drop_last=True)
 
@@ -99,8 +97,9 @@ def test(test_dataloader, model):
 
             # my file!
             start, end = info[0, 2:4]
+            index = info[0, 1]
             filenames = [f"{str(ts).zfill(4)}.png" for ts in range(start, end + 1)]
-            clip_names = [f"{str(info[0, 0].item())}/{str(info[0, 1].item()).zfill(3)}"] * len(filenames)
+            clip_names = [test_dataloader.dataset.data_list[index]] * len(filenames)
             ttc = extra["ttc"][0].detach().cpu().numpy()
             labels_ = labels_[0].detach().cpu().numpy()
             df_preds.extend(outputs)
@@ -144,7 +143,7 @@ def test_data():
     keral=opt.keral
     num_class=opt.num_class
     ckpt_path = r'models_cfgs/Full_best_model.pth'
-    save_to = "full_results/pred_full_dota_best_model.csv"
+    save_to = "full_results_DoTA/pred_full_best_model_dota.csv"
     weight = torch.load(ckpt_path)
     model=accident(h_dim,n_layers,depth,adim,heads,num_tokens,c_dim,s_dim1,s_dim2,keral,num_class).to(device)
     model.eval()

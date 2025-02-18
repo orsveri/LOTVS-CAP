@@ -414,8 +414,6 @@ class accident(nn.Module):
             all_output.append(output1)
         return losses,all_output
 
-
-
     def _exp_loss(self, pred, target, time, toa, fps=30.0):
             target_cls = target[:, 1]
             target_cls = target_cls.to(torch.long)
@@ -431,10 +429,42 @@ class accident(nn.Module):
         P = P / (eps + torch.sum(P,dim=(0,1,2,3),keepdim=True ))
         Q = y_true
         Q = Q / (eps + torch.sum(Q,dim=(0,1,2,3),keepdim=True))
-        kld = torch.sum(Q * torch.log(eps + Q / (eps + P)), dim=(0,1,2,3))
+        kld = torch.sum(Q * torch.log(eps + Q / (eps + P)), dim=(1,2,3))
         return kld
 
 
+class accident_frame(accident):
 
+    def forward(self, x, z, y, w):
+        #x:rgb、z:foucs、y:label(positive,negative)、toa:time to accident、w:word(text)
+        losses = {'total_loss': 0}
+        all_output=[]
+        x_11 = x
+        B, T = x.shape[:2]
+        # hh is the initial hidden state
+        hh = Variable(torch.zeros(self.n_layers, x_11.size(0), self.h_dim))
+        hh=hh.to(device)
+        for i in range(T):
+            x1 =x_11[:, i]
+            x2 =z[:, i]
+            yi = y[:, i]
+            tokens_tensor, input_masks_tensors=self.text(w)
+            x= self.fusion(tokens_tensor,input_masks_tensors,x1)
+            x = self.features(x)
+            x=x.permute(0,2,1).contiguous()
+
+            output1 = self.gru_net(x, hh)
+            #also can output foucs_p
+            foucs_p=self.deconv(x)
+
+            L1 = self.ce_loss(output1, yi)
+            L2 = self.kl_loss(x2, foucs_p)
+            loss_sum=(5*L1+L2).sum()
+
+            losses['total_loss'] += loss_sum
+            all_output.append(output1)
+
+        losses['total_loss'] = losses['total_loss'] / B / T
+        return losses, all_output
 
 

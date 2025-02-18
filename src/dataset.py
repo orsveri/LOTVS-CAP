@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import cv2
 import pandas as pd
@@ -122,7 +123,6 @@ class DADA(Dataset):
     def __len__(self):
         return len(self.data_list)
 
-
     def read_rgbvideo(self, video_file, start, end):
         """Read video frames
         """
@@ -231,12 +231,12 @@ class DADA2K(Dataset):
             row = row.iloc[0]
 
             with zipfile.ZipFile(os.path.join(self.root_path, "frames", clip, "images.zip"), 'r') as zipf:
-                framenames = natsorted([f for f in zipf.namelist() if os.path.splitext(f)[1] == ".png"])
+                framenames = natsorted([f for f in zipf.namelist() if os.path.splitext(f)[1]==".png"])
             timesteps = natsorted([int(os.path.splitext(f)[0].split("_")[-1]) for f in framenames])
             if_acc_video = int(row["whether an accident occurred (1/0)"])
-            if if_acc_video:
-                st = int(row["abnormal start frame"])
-                en = int(row["abnormal end frame"])
+            st = int(row["abnormal start frame"])
+            en = int(row["abnormal end frame"])
+            if st > -1 and en > -1:
                 binary_labels = [1 if st <= t <= en else 0 for t in timesteps]
             else:
                 binary_labels = [0 for _ in timesteps]
@@ -313,7 +313,7 @@ class DADA2K(Dataset):
         y=torch.tensor(self.labels[index], dtype=torch.float32)
         data_info=torch.tensor(data_info)
         # my ttc
-        ttc = compute_time_vector(y, fps=30, TT=2., TA=1.)
+        ttc = compute_time_vector(y, fps=self.fps, TT=2., TA=1.)
         return data_info,y,texts,ttc
 
 
@@ -330,6 +330,89 @@ class DADA2K(Dataset):
         extra_info = {"data_info": data_info, "ttc": ttc}
         return video_data, focus_data, extra_info, y, texts
 
+
+class DoTA(Dataset):
+    def __init__(self, root_path, phase, interval,transform,
+                  data_aug=False):
+        self.root_path = root_path
+        self.phase = phase  # 'training', 'testing', 'validation'
+        self.interval = interval
+        self.transforms= transform
+        self.data_aug = data_aug
+        self.fps = 10
+        self.num_classes = 2
+        self.data_list, self.labels, self.clips, self.ttcs , self.texts, self.acc_ids = self.get_data_list()
+
+    def get_data_list(self):
+        split_file = "val_split" if self.phase in ("testing", "validation") else "train_split"
+        with open(os.path.join(self.root_path, "dataset", split_file + '.txt'), 'r') as file:
+            clip_names = [line.rstrip() for line in file]
+
+        fileIDs = clip_names
+        labels = []
+        clips = []
+        ttcs = []
+        texts = ["a video frame of { }" for _ in range(len(clip_names))]
+        acc_ids = []
+
+        for clip in clip_names:
+            clip_anno_path = os.path.join(self.root_path, "dataset", "annotations", f"{clip}.json")
+            with open(clip_anno_path) as f:
+                anno = json.load(f)
+                # sort is not required since we read already sorted timesteps from annotations
+                timesteps = natsorted(
+                    [int(os.path.splitext(os.path.basename(frame_label["image_path"]))[0]) for frame_label
+                     in anno["labels"]])
+                cat_labels = [int(frame_label["accident_id"]) for frame_label in anno["labels"]]
+                if_ego = anno["ego_involve"]
+                if_night = anno["night"]
+                acc_id = int(anno["accident_id"])
+            binary_labels = [1 if l > 0 else 0 for l in cat_labels]
+            ttc = compute_time_vector(binary_labels, fps=self.fps, TT=2., TA=1.)
+
+            labels.append(binary_labels)
+            clips.append([timesteps[0], timesteps[-1]])
+            ttcs.append(ttc)
+            acc_ids.append(acc_id)
+
+        return fileIDs, labels, clips, ttcs, texts, acc_ids
+
+    def __len__(self):
+        return len(self.data_list)
+
+    def __getitem__(self, index):
+        # clip start and ending
+        start, end = self.clips[index]
+        # read RGB video (trimmed)
+        video_data = self.read_zip(self.data_list[index], start, end)
+        #read focus video
+        focus_data = self.empty_foucsvideo(nb=video_data.shape[0])
+        y = torch.tensor(self.labels[index], dtype=torch.float32)
+        texts = self.texts[index]
+        ttc = self.ttcs[index]
+        data_info = torch.tensor(np.array([self.acc_ids[index], index, start, end, -1], dtype=np.int32))
+        extra_info = {"data_info": data_info, "ttc": ttc}
+        return video_data, focus_data, extra_info, y, texts
+
+    def read_zip(self, clip_name, start, end):
+        filenames = [f"{str(ts).zfill(6)}.jpg" for ts in range(start, end+1)]
+        video_datas = []
+        with zipfile.ZipFile(os.path.join(self.root_path, "frames", clip_name, "images.zip"), 'r') as zipf:
+            for fname in filenames:
+                data = zipf.read(fname)
+                image_file = BytesIO(data)
+                video_data = Image.open(image_file)
+                if self.transforms:
+                    video_data = self.transforms(video_data)
+                    video_data = np.asarray(video_data, np.float32)
+                video_datas.append(video_data)
+        video_data = np.array(video_datas, dtype=np.float32)  # 4D tensor
+        #view = np.stack(view, axis=0)
+        return video_data
+
+    def empty_foucsvideo(self, nb):
+        video_data = np.zeros((nb, 1, 64, 64), dtype=np.float32)  # 4D tensor
+        return video_data
 
 
 if __name__=="__main__":
