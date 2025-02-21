@@ -437,7 +437,7 @@ class accident_frame(accident):
 
     def forward(self, x, z, y, w):
         #x:rgb、z:foucs、y:label(positive,negative)、toa:time to accident、w:word(text)
-        losses = {'total_loss': 0}
+        batch_loss = 0.
         all_output=[]
         x_11 = x
         B, T = x.shape[:2]
@@ -461,10 +461,10 @@ class accident_frame(accident):
             L2 = self.kl_loss(x2, foucs_p)
             loss_sum=(5*L1+L2).sum()
 
-            losses['total_loss'] += loss_sum
-            all_output.append(output1)
+            batch_loss += loss_sum
+            all_output.append(output1.detach().cpu().numpy())
 
-        losses['total_loss'] = losses['total_loss'] / B / T
-        return losses, all_output
+        batch_loss = batch_loss / B / T
+        return batch_loss, all_output
 
 

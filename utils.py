@@ -1,17 +1,13 @@
 import time
 import os
 import os.path as osp
-
+import psutil
 import numpy as np 
 import torch
 import matplotlib.pyplot as plt
 import torch.distributed as dist
-from pytorch_lightning.utilities.distributed import rank_zero_only
 
-@rank_zero_only
-def print_on_rank_zero(content):
-	if is_main_process():	
-		print(content)
+
 	
 def is_dist_avail_and_initialized():
 	if not dist.is_available():
@@ -42,28 +38,6 @@ def timeit_wrapper(func, *args, **kwargs):
 def show_trainable_params(named_parameters):
 	for name, param in named_parameters:
 		print(name, param.size())
-
-def build_param_groups(model):
-	params_no_decay = []
-	params_has_decay = []
-	params_no_decay_name = []
-	params_decay_name = []
-	for name, param in model.named_parameters():
-		if not param.requires_grad:
-			continue
-		if len(param) == 1 or name.endswith('.bias'): 
-			params_no_decay.append(param)
-			params_no_decay_name.append(name)
-		else:
-			params_has_decay.append(param)
-			params_decay_name.append(name)
-
-	param_groups = [
-					{'params': params_no_decay, 'weight_decay': 0},
-					{'params': params_has_decay},
-					]
-	print_on_rank_zero(f'params_no_decay_name: {params_no_decay_name} \n params_decay_name: {params_decay_name}')
-	return param_groups
 
 
 def denormalize(data, mean, std):
@@ -126,3 +100,17 @@ def show_processed_image(imgs, save_dir, mean, std, index=0):
 	plt.tight_layout()
 	filename = osp.join(save_dir, f'clip_transformed_b{index}.png')
 	plt.savefig(filename)
+
+def print_memory_usage():
+	# GPU memory usage
+	if torch.cuda.is_available():
+		for i in range(torch.cuda.device_count()):
+			allocated = torch.cuda.memory_allocated(i) / (1024 ** 3)
+			reserved = torch.cuda.memory_reserved(i) / (1024 ** 3)
+			print(f"------------GPU {i}: Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
+
+	# CPU memory usage
+	vm = psutil.virtual_memory()
+	used = (vm.total - vm.available) / (1024 ** 3)
+	print(f"------------CPU Memory Usage: {used:.2f} GB / {vm.total / (1024 ** 3):.2f} GB")
+	print("(not only this process but overall including all other users!)")
