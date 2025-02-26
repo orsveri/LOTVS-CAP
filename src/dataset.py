@@ -222,9 +222,6 @@ class DADA2K(Dataset):
         toas = []
         texts = ["a video frame of { }" for _ in range(len(clip_names))]
 
-        # TODO DEB
-        clip_names = clip_names[:2]
-
         for clip in clip_names:
             clip_type, clip_subfolder = clip.split("/")
             row = df[(df["video"] == int(clip_subfolder)) & (df["type"] == int(clip_type))]
