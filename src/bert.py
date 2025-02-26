@@ -43,6 +43,8 @@ parse.add_argument('-num_class', type=int, default=2,
                    help='')
 parse.add_argument('-max_length', type=int, default=15,
                    help='the length of word')
+parse.add_argument('-e', type=int, default=0,
+                   help='epoch to test on')
 opt = parse.parse_args()
 
 

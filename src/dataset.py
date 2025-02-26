@@ -222,6 +222,9 @@ class DADA2K(Dataset):
         toas = []
         texts = ["a video frame of { }" for _ in range(len(clip_names))]
 
+        # TODO DEB
+        clip_names = clip_names[:2]
+
         for clip in clip_names:
             clip_type, clip_subfolder = clip.split("/")
             row = df[(df["video"] == int(clip_subfolder)) & (df["type"] == int(clip_type))]
@@ -247,7 +250,7 @@ class DADA2K(Dataset):
         return fileIDs, labels, clips, toas, texts
 
     def __len__(self):
-        return len(self.data_list)
+        return len(self.clips)
 
 
     def read_rgbvideo(self, video_file, start, end):

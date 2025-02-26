@@ -1,7 +1,4 @@
-from detectron2.model_zoo.configs.common.data.coco import dataloader
-from sklearn.metrics import roc_auc_score
 import torch
-import torch.nn as nn
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from src.model import accident
@@ -9,12 +6,12 @@ from tqdm import tqdm
 import os
 import numpy as np
 import pandas as pd
-from src.eval_tools import evaluation, print_results, vis_results,evaluate_earliness
 from src.bert import opt
 from src.dataset import DADA2K
 from natsort import natsorted
+import argparse
 
-os.environ['CUDA_VISIBLE_DEVICES']= '0'
+#os.environ['CUDA_VISIBLE_DEVICES']= '1'
 transform = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -24,14 +21,14 @@ transform = transforms.Compose(
     )
 
 # device = ("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device('cuda:0')
+device = torch.device('cuda')
 num_epochs = 50
 # learning_rate = 0.0001
 batch_size = 1
 shuffle = True
 pin_memory = True
 num_workers = 1
-rootpath=r'/mnt/experiments/sorlova/datasets/LOTVS/DADA/DADA2000'
+rootpath=r'/home/sorlova/data/LOTVS/DADA/DADA2000'
 frame_interval=1
 input_shape=[224,224]
 seed = 123
@@ -143,26 +140,21 @@ def test_data():
     s_dim2=opt.s_dim2
     keral=opt.keral
     num_class=opt.num_class
-    ckpt_path = r'models_cfgs/Full_best_model.pth'
-    save_to = "full_results/pred_full_dota_best_model.csv"
-    weight = torch.load(ckpt_path)
+    ckpt = str(opt.e).zfill(2) #"00"
+    ckpt_path = f'logs/dada2k_seq96_b4_2kiter/ckpts/ckpt_{ckpt}.pth'
+    save_to = f"logs/dada2k_seq96_b4_2kiter/preds_dada/predictions_{ckpt}.csv"
+    weight = torch.load(ckpt_path)["model_state_dict"]
     model=accident(h_dim,n_layers,depth,adim,heads,num_tokens,c_dim,s_dim1,s_dim2,keral,num_class).to(device)
+    # Only for shared by authors
+    #weight["fusion.image_model.downsampling.weight"] = weight.pop("fusion.image_model.upsampling.weight")
+    #weight["fusion.image_model.downsampling.bias"] = weight.pop("fusion.image_model.upsampling.bias")
+    model.load_state_dict(weight, strict=True)  # hmmm...
     model.eval()
-    weight["fusion.image_model.downsampling.weight"] = weight.pop("fusion.image_model.upsampling.weight")
-    weight["fusion.image_model.downsampling.bias"] = weight.pop("fusion.image_model.upsampling.bias")
-    model.load_state_dict(weight, strict=False)  # hmmm...
     print('------Starting evaluation------')
     os.makedirs(os.path.dirname(save_to), exist_ok=True)
     all_pred, all_labels, all_toas, df = test(valdata_loader,model)
     df.to_csv(save_to, index=True, header=True)
 
-    # mTTA = evaluate_earliness(all_pred, all_labels, all_toas, fps=30, thresh=0.5)
-    # print("\n[Earliness] mTTA@0.5 = %.4f seconds." % (mTTA))
-    # AP, mTTA, TTA_R80 = evaluation(all_pred, all_labels, all_toas, fps=30)
-    # print("[Correctness] AP = %.4f, mTTA = %.4f, TTA_R80 = %.4f" % (AP, mTTA, TTA_R80))
-    # all_vid_scores=[max(pred[int(toa):]) for toa, pred in zip(all_toas, all_pred)]
-    # AUC=roc_auc_score(all_labels,all_vid_scores)
-    # print("[Correctness] v-AUC = %.5f." % (AUC))
 
 if __name__=="__main__":
     test_data()

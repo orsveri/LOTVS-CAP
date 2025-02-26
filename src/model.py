@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import cv2
 
-os.environ['CUDA_VISIBLE_DEVICES']= '0'
 device = ("cuda" if torch.cuda.is_available() else "cpu")
 import numpy as np
 
